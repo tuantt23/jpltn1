@@ -1,0 +1,27 @@
+// Kanji N1 — k (chữ), hv (Hán Việt), on (âm On), kun (âm Kun), m (nghĩa), ex ([từ, cách đọc, nghĩa])
+window.KANJI = [
+  { k: "覇", hv: "BÁ", on: "ハ", kun: "", m: "bá chủ, thống trị", ex: [["覇権", "はけん", "bá quyền"], ["制覇", "せいは", "chinh phục, vô địch"]] },
+  { k: "剰", hv: "THẶNG", on: "ジョウ", kun: "", m: "dư thừa", ex: [["過剰", "かじょう", "quá mức"], ["余剰", "よじょう", "thặng dư"]] },
+  { k: "拙", hv: "CHUYẾT", on: "セツ", kun: "つたな(い)", m: "vụng về", ex: [["稚拙", "ちせつ", "non nớt, vụng"], ["拙速", "せっそく", "nhanh mà ẩu"]] },
+  { k: "擁", hv: "ỦNG", on: "ヨウ", kun: "", m: "ôm, bảo vệ", ex: [["擁護", "ようご", "ủng hộ, bảo vệ"], ["抱擁", "ほうよう", "ôm ấp"]] },
+  { k: "頒", hv: "BAN", on: "ハン", kun: "", m: "phân phát", ex: [["頒布", "はんぷ", "phân phát"]] },
+  { k: "繕", hv: "THIỆN", on: "ゼン", kun: "つくろ(う)", m: "sửa, vá", ex: [["修繕", "しゅうぜん", "tu sửa"], ["営繕", "えいぜん", "xây dựng và sửa chữa"]] },
+  { k: "遡", hv: "TỐ", on: "ソ", kun: "さかのぼ(る)", m: "ngược dòng, truy về", ex: [["遡及", "そきゅう", "hồi tố"], ["遡上", "そじょう", "ngược dòng"]] },
+  { k: "諮", hv: "TƯ", on: "シ", kun: "はか(る)", m: "hỏi ý kiến", ex: [["諮問", "しもん", "tham vấn"]] },
+  { k: "逸", hv: "DẬT", on: "イツ", kun: "そ(れる)", m: "lệch, thoát ra; xuất sắc", ex: [["逸脱", "いつだつ", "đi lệch"], ["逸話", "いつわ", "giai thoại"]] },
+  { k: "謙", hv: "KHIÊM", on: "ケン", kun: "", m: "khiêm tốn", ex: [["謙虚", "けんきょ", "khiêm tốn"], ["謙遜", "けんそん", "khiêm nhường"]] },
+  { k: "癒", hv: "DŨ", on: "ユ", kun: "い(やす)", m: "chữa lành", ex: [["治癒", "ちゆ", "chữa khỏi"], ["癒着", "ゆちゃく", "câu kết, dính liền"]] },
+  { k: "唆", hv: "TOA", on: "サ", kun: "そそのか(す)", m: "xúi giục", ex: [["示唆", "しさ", "gợi ý, ám chỉ"]] },
+  { k: "弔", hv: "ĐIẾU", on: "チョウ", kun: "とむら(う)", m: "viếng, phúng điếu", ex: [["弔問", "ちょうもん", "đi viếng"], ["慶弔", "けいちょう", "hiếu hỷ"]] },
+  { k: "懐", hv: "HOÀI", on: "カイ", kun: "ふところ・なつ(かしい)", m: "ôm ấp, hoài niệm", ex: [["懐疑", "かいぎ", "hoài nghi"], ["懐中", "かいちゅう", "trong túi áo"]] },
+  { k: "粛", hv: "TÚC", on: "シュク", kun: "", m: "nghiêm túc, trang nghiêm", ex: [["自粛", "じしゅく", "tự kiềm chế"], ["厳粛", "げんしゅく", "trang nghiêm"]] },
+  { k: "頻", hv: "TẦN", on: "ヒン", kun: "", m: "thường xuyên", ex: [["頻繁", "ひんぱん", "thường xuyên"], ["頻度", "ひんど", "tần suất"]] },
+  { k: "潤", hv: "NHUẬN", on: "ジュン", kun: "うるお(う)", m: "ẩm ướt, lợi nhuận", ex: [["利潤", "りじゅん", "lợi nhuận"], ["潤滑", "じゅんかつ", "bôi trơn"]] },
+  { k: "枢", hv: "XU", on: "スウ", kun: "", m: "then chốt", ex: [["中枢", "ちゅうすう", "trung khu"], ["枢軸", "すうじく", "trục then chốt"]] },
+  { k: "搾", hv: "TRÁ", on: "サク", kun: "しぼ(る)", m: "vắt, ép", ex: [["搾取", "さくしゅ", "bóc lột"], ["圧搾", "あっさく", "nén ép"]] },
+  { k: "措", hv: "THỐ", on: "ソ", kun: "", m: "sắp đặt, xử lý", ex: [["措置", "そち", "biện pháp"]] },
+  { k: "該", hv: "CAI", on: "ガイ", kun: "", m: "tương ứng, nói trên", ex: [["該当", "がいとう", "tương ứng, thuộc diện"], ["当該", "とうがい", "(cái) có liên quan"]] },
+  { k: "妨", hv: "PHƯƠNG", on: "ボウ", kun: "さまた(げる)", m: "cản trở", ex: [["妨害", "ぼうがい", "cản trở, phá rối"]] },
+  { k: "隔", hv: "CÁCH", on: "カク", kun: "へだ(てる)", m: "ngăn cách", ex: [["隔離", "かくり", "cách ly"], ["間隔", "かんかく", "khoảng cách"]] },
+  { k: "緻", hv: "TRÍ", on: "チ", kun: "", m: "tỉ mỉ", ex: [["緻密", "ちみつ", "tỉ mỉ, chặt chẽ"]] }
+];
