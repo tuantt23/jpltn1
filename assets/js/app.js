@@ -10,13 +10,143 @@
   const $app = document.getElementById('app');
 
   /* ---------- Storage ---------- */
-  const DEFAULT = () => ({ srs: {}, grammar: {}, history: [], streak: { last: null, count: 0 }, theme: null });
+  // gT: thời điểm đổi trạng thái từng mẫu ngữ pháp (dùng khi gộp dữ liệu đồng bộ)
+  const DEFAULT = () => ({ srs: {}, grammar: {}, gT: {}, history: [], streak: { last: null, count: 0 }, theme: null });
   let S = load();
   function load() {
     try { return Object.assign(DEFAULT(), JSON.parse(localStorage.getItem(STORE)) || {}); }
     catch (e) { return DEFAULT(); }
   }
-  function save() { try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) { /* private mode */ } }
+  function saveLocal() { try { localStorage.setItem(STORE, JSON.stringify(S)); } catch (e) { /* private mode */ } }
+  function save() { saveLocal(); scheduleSync(); }
+
+  /* ---------- Đồng bộ GitHub ----------
+     Cấu hình (kể cả token) lưu riêng ở key n1dojo_sync, KHÔNG nằm trong file xuất JSON và KHÔNG được đẩy lên repo. */
+  const SYNC_KEY = 'n1dojo_sync';
+  const SYNC_DELAY = 30000; // gom các thay đổi trong 30 giây thành 1 commit
+  let SC = loadSync(), syncing = false, syncPending = false, syncTimer = null;
+  function loadSync() { try { return JSON.parse(localStorage.getItem(SYNC_KEY)) || {}; } catch (e) { return {}; } }
+  function saveSync() { try { localStorage.setItem(SYNC_KEY, JSON.stringify(SC)); } catch (e) { /* ignore */ } }
+  const syncReady = () => !!(SC.owner && SC.repo && SC.token && SC.path);
+
+  const b64enc = s => { const b = new TextEncoder().encode(s); let bin = ''; for (let i = 0; i < b.length; i += 0x8000) bin += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(bin); };
+  const b64dec = s => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\s/g, '')), c => c.charCodeAt(0)));
+
+  function gh(method, body) {
+    const path = SC.path.split('/').map(encodeURIComponent).join('/');
+    let url = `https://api.github.com/repos/${encodeURIComponent(SC.owner)}/${encodeURIComponent(SC.repo)}/contents/${path}`;
+    if (method === 'GET' && SC.branch) url += '?ref=' + encodeURIComponent(SC.branch);
+    const headers = { Accept: 'application/vnd.github+json', Authorization: 'Bearer ' + SC.token, 'X-GitHub-Api-Version': '2022-11-28' };
+    if (body) headers['Content-Type'] = 'application/json';
+    return fetch(url, { method, headers, cache: 'no-store', body: body ? JSON.stringify(body) : undefined });
+  }
+  async function ghError(res) {
+    let msg = ''; try { msg = (await res.json()).message || ''; } catch (e) { /* ignore */ }
+    const hint = {
+      401: 'Token sai hoặc đã hết hạn.',
+      403: 'Token không có quyền ghi (cần Contents: Read and write) hoặc bị giới hạn tốc độ.',
+      404: 'Không tìm thấy repo — kiểm tra owner/repo, và token đã được cấp quyền cho đúng repo này chưa.'
+    }[res.status] || '';
+    return new Error(`GitHub ${res.status}: ${hint || msg}`);
+  }
+
+  // Gộp tiến độ 2 nơi: mỗi thẻ/mẫu lấy bản được cập nhật sau cùng; lịch sử thi gộp theo thời điểm.
+  function mergeState(local, remote) {
+    const out = Object.assign(DEFAULT(), local);
+    out.srs = Object.assign({}, remote.srs);
+    for (const [id, c] of Object.entries(local.srs || {})) {
+      const r = out.srs[id];
+      if (!r || (c.t || 0) >= (r.t || 0)) out.srs[id] = c;
+    }
+    out.grammar = {}; out.gT = {};
+    const lg = local.grammar || {}, rg = remote.grammar || {}, lt = local.gT || {}, rt = remote.gT || {};
+    for (const p of new Set([...Object.keys(lg), ...Object.keys(rg), ...Object.keys(lt), ...Object.keys(rt)])) {
+      const useLocal = (lt[p] || 0) >= (rt[p] || 0);
+      const v = useLocal ? !!lg[p] : !!rg[p];
+      const t = Math.max(lt[p] || 0, rt[p] || 0);
+      if (v) out.grammar[p] = true;
+      if (t) out.gT[p] = t;
+    }
+    const hist = new Map();
+    [...(remote.history || []), ...(local.history || [])].forEach(h => hist.set(h.at, h));
+    out.history = [...hist.values()].sort((a, b) => a.at - b.at).slice(-100);
+    const ls = local.streak || {}, rs = remote.streak || {};
+    const ld = ls.last ? Date.parse(ls.last) : 0, rd = rs.last ? Date.parse(rs.last) : 0;
+    out.streak = ld > rd ? ls : rd > ld ? rs : ((ls.count || 0) >= (rs.count || 0) ? ls : rs);
+    out.theme = local.theme; // giao diện giữ theo từng máy
+    return out;
+  }
+  const payloadOf = st => { const p = Object.assign({}, st); delete p.theme; return JSON.stringify(p, null, 1); };
+
+  function setSyncStatus(state, msg) {
+    SC.status = state; SC.msg = msg || ''; saveSync();
+    const dot = document.getElementById('syncDot');
+    if (!dot) return;
+    dot.hidden = !syncReady();
+    dot.dataset.state = state;
+    dot.title = { sync: 'Đang đồng bộ…', ok: 'Đã đồng bộ GitHub' + (SC.last ? ' lúc ' + new Date(SC.last).toLocaleTimeString('vi-VN') : ''), err: 'Lỗi đồng bộ: ' + (msg || ''), wait: 'Có thay đổi chờ đồng bộ' }[state] || '';
+    const box = document.getElementById('syncInfo');
+    if (box) box.innerHTML = syncInfoHtml();
+  }
+  function scheduleSync(delay) {
+    if (!syncReady() || !SC.auto) return;
+    clearTimeout(syncTimer);
+    setSyncStatus('wait');
+    syncTimer = setTimeout(() => syncNow(), delay ?? SYNC_DELAY);
+  }
+  // force = true: ghi đè dữ liệu trên repo bằng dữ liệu máy này (dùng khi xoá tiến độ)
+  async function syncNow(opts = {}) {
+    if (!syncReady()) return false;
+    if (syncing) { syncPending = true; return false; }
+    clearTimeout(syncTimer);
+    syncing = true; setSyncStatus('sync');
+    try {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const res = await gh('GET');
+        let sha = null, remoteText = null, remote = null;
+        if (res.status === 200) {
+          const j = await res.json();
+          sha = j.sha; remoteText = b64dec(j.content || '');
+          try { remote = JSON.parse(remoteText); } catch (e) { remote = null; }
+        } else if (res.status !== 404) throw await ghError(res);
+
+        const before = JSON.stringify(S);
+        if (remote && !opts.force) S = mergeState(S, remote);
+        saveLocal();
+        const text = payloadOf(S);
+        if (text !== remoteText) {
+          const body = { message: `progress: ${new Date().toISOString()}`, content: b64enc(text) };
+          if (sha) body.sha = sha;
+          if (SC.branch) body.branch = SC.branch;
+          const put = await gh('PUT', body);
+          if ((put.status === 409 || put.status === 422) && attempt < 2) continue; // máy khác vừa ghi → đọc lại rồi gộp
+          if (!put.ok) throw await ghError(put);
+        }
+        SC.last = Date.now();
+        setSyncStatus('ok');
+        // Dữ liệu từ máy khác vừa được gộp vào → vẽ lại trang tĩnh (không làm gián đoạn flashcard/thi thử)
+        if (JSON.stringify(S) !== before && /^(home|progress)?$/.test(location.hash.replace(/^#\/?/, ''))) render();
+        return true;
+      }
+      throw new Error('Xung đột ghi liên tục, hãy thử lại.');
+    } catch (e) {
+      setSyncStatus('err', e.message);
+      if (opts.manual) alert('Đồng bộ thất bại.\n' + e.message);
+      return false;
+    } finally {
+      syncing = false;
+      if (syncPending) { syncPending = false; scheduleSync(2000); }
+    }
+  }
+  function syncInfoHtml() {
+    if (!syncReady()) return '<span class="tag">Chưa kết nối</span>';
+    const st = { ok: '<span class="tag ok">Đã đồng bộ</span>', sync: '<span class="tag">Đang đồng bộ…</span>', wait: '<span class="tag">Chờ đồng bộ</span>', err: '<span class="tag bad">Lỗi</span>' }[SC.status] || '';
+    return `${st} <span class="hint">${esc(SC.owner)}/${esc(SC.repo)}/${esc(SC.path)}${SC.last ? ' · lần cuối ' + new Date(SC.last).toLocaleString('vi-VN') : ''}</span>
+      ${SC.status === 'err' && SC.msg ? `<div class="hint" style="text-align:left;color:var(--bad)">${esc(SC.msg)}</div>` : ''}`;
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden' && SC.status === 'wait') syncNow();
+  });
 
   function touchStreak() {
     const today = new Date().toDateString();
@@ -52,6 +182,7 @@
     c.seen = (c.seen || 0) + 1;
     c.box = ok ? Math.min(c.box + 1, INTERVALS.length - 1) : 0;
     c.due = ok ? startOfDay(Date.now() + INTERVALS[c.box] * DAY) : 0;
+    c.t = Date.now();
     S.srs[id] = c;
     touchStreak();
     save();
@@ -227,7 +358,7 @@
       const say = e.target.closest('[data-say]'); if (say) return speak(say.dataset.say);
       const l = e.target.closest('[data-learn]');
       if (l) {
-        const p = l.dataset.learn; S.grammar[p] = !S.grammar[p]; if (S.grammar[p]) touchStreak(); save();
+        const p = l.dataset.learn; S.grammar[p] = !S.grammar[p]; S.gT[p] = Date.now(); if (S.grammar[p]) touchStreak(); save();
         const openIdx = [...list.querySelectorAll('details')].findIndex(d => d.open);
         draw(); const d = list.querySelectorAll('details')[openIdx]; if (d && only === 'all') d.open = true;
       }
@@ -374,10 +505,41 @@
       <h2>Phân bố thẻ theo hộp Leitner</h2>
       <div class="card"><div class="bars">${boxes.map((b, k) => `<div class="b"><span>${b}</span><span class="fill" style="height:${b / max * 100}%"></span><span>Hộp ${k}</span></div>`).join('')}</div>
         <p class="hint" style="text-align:left">Hộp 0 = mới/quên · Hộp 6 = ôn lại sau 30 ngày</p></div>
+      <h2>Đồng bộ lên GitHub</h2>
+      <div class="card">
+        <p style="margin-top:0">Lưu tiến độ vào file JSON trong <b>repo private</b> của bạn để học trên nhiều máy. Token chỉ lưu trong trình duyệt này, không bao giờ được đẩy lên repo.</p>
+        <div id="syncInfo" style="margin-bottom:12px">${syncInfoHtml()}</div>
+        <div class="form-grid">
+          <label>GitHub username<input id="sOwner" value="${esc(SC.owner || '')}" placeholder="yourname" autocomplete="off"></label>
+          <label>Repo lưu dữ liệu<input id="sRepo" value="${esc(SC.repo || 'n1-data')}" placeholder="n1-data" autocomplete="off"></label>
+          <label>Đường dẫn file<input id="sPath" value="${esc(SC.path || 'progress.json')}" placeholder="progress.json" autocomplete="off"></label>
+          <label><span>Branch <span style="font-weight:400">(bỏ trống = mặc định)</span></span><input id="sBranch" value="${esc(SC.branch || '')}" placeholder="main" autocomplete="off"></label>
+          <label style="grid-column:1/-1">Personal access token (fine-grained)<input id="sToken" type="password" value="${esc(SC.token || '')}" placeholder="github_pat_…" autocomplete="off"></label>
+        </div>
+        <label class="row" style="margin:10px 0 14px"><input type="checkbox" id="sAuto" ${SC.auto !== false ? 'checked' : ''}> Tự động đồng bộ (30 giây sau thay đổi cuối, khi mở web và khi rời tab)</label>
+        <div class="row">
+          <button class="btn primary" id="sSave">Lưu & đồng bộ</button>
+          <button class="btn" id="sNow" ${syncReady() ? '' : 'disabled'}>⟳ Đồng bộ ngay</button>
+          <button class="btn" id="sOff" ${syncReady() ? '' : 'disabled'}>Ngắt kết nối</button>
+        </div>
+      </div>
       <h2>Sao lưu dữ liệu</h2>
-      <div class="card"><p style="margin-top:0">Tiến độ chỉ nằm trong trình duyệt này. Xuất file để chuyển sang máy khác.</p>
+      <div class="card"><p style="margin-top:0">Xuất/nhập file thủ công (không cần GitHub). File xuất không chứa token.</p>
         <div class="row"><button class="btn" id="exp">⬇ Xuất JSON</button><label class="btn">⬆ Nhập JSON<input type="file" id="imp" accept=".json,application/json" hidden></label>
         <button class="btn bad" id="rst">Xoá toàn bộ tiến độ</button></div></div>`;
+    document.getElementById('sSave').onclick = async () => {
+      const v = id => document.getElementById(id).value.trim();
+      const next = { owner: v('sOwner'), repo: v('sRepo'), path: v('sPath').replace(/^\/+/, '') || 'progress.json', branch: v('sBranch'), token: v('sToken'), auto: document.getElementById('sAuto').checked };
+      if (!next.owner || !next.repo || !next.token) return alert('Cần nhập username, repo và token.');
+      const changedTarget = next.owner !== SC.owner || next.repo !== SC.repo || next.path !== SC.path || next.branch !== (SC.branch || '');
+      SC = Object.assign(SC, next, changedTarget ? { last: null } : {}); saveSync();
+      if (await syncNow({ manual: true })) { alert('Đã kết nối và đồng bộ thành công.'); progress(); }
+    };
+    document.getElementById('sNow').onclick = async () => { if (await syncNow({ manual: true })) progress(); };
+    document.getElementById('sOff').onclick = () => {
+      if (!confirm('Ngắt kết nối và xoá token khỏi trình duyệt này? Dữ liệu trên repo vẫn giữ nguyên.')) return;
+      SC = {}; saveSync(); setSyncStatus('off'); progress();
+    };
     document.getElementById('exp').onclick = () => {
       const blob = new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' });
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
@@ -385,11 +547,18 @@
     };
     document.getElementById('imp').onchange = e => {
       const f = e.target.files[0]; if (!f) return;
-      f.text().then(t => { S = Object.assign(DEFAULT(), JSON.parse(t)); save(); applyTheme(); alert('Đã nhập dữ liệu.'); progress(); })
+      f.text().then(t => { S = Object.assign(DEFAULT(), JSON.parse(t)); saveLocal(); applyTheme(); alert('Đã nhập dữ liệu.'); progress(); if (syncReady()) syncNow({ manual: true }); })
         .catch(() => alert('File không hợp lệ.'));
     };
-    document.getElementById('rst').onclick = () => { if (confirm('Xoá toàn bộ tiến độ? Không thể hoàn tác.')) { S = DEFAULT(); save(); applyTheme(); progress(); } };
+    document.getElementById('rst').onclick = () => {
+      const msg = syncReady() ? 'Xoá toàn bộ tiến độ ở máy này VÀ trên repo GitHub? (Lịch sử commit cũ trên GitHub vẫn còn để khôi phục.)' : 'Xoá toàn bộ tiến độ? Không thể hoàn tác.';
+      if (!confirm(msg)) return;
+      const theme = S.theme; S = DEFAULT(); S.theme = theme; saveLocal(); applyTheme(); progress();
+      if (syncReady()) syncNow({ force: true, manual: true }).then(ok => ok && progress());
+    };
   }
 
   render();
+  setSyncStatus(syncReady() ? (SC.status === 'err' ? 'err' : 'ok') : 'off', SC.msg);
+  if (syncReady() && SC.auto !== false) syncNow(); // kéo dữ liệu mới nhất từ máy khác khi mở web
 })();

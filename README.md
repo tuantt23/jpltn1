@@ -11,6 +11,7 @@
   - [4.4 Bật GitHub Pages](#44-bật-github-pages)
   - [4.5 Cập nhật nội dung sau này](#45-cập-nhật-nội-dung-sau-này)
 - [5. Thêm dữ liệu học](#5-thêm-dữ-liệu-học)
+- [5b. Đồng bộ tiến độ lên GitHub](#5b-đồng-bộ-tiến-độ-lên-github)
 - [6. Tuỳ chọn nâng cao](#6-tuỳ-chọn-nâng-cao)
 - [7. Xử lý sự cố](#7-xử-lý-sự-cố)
 
@@ -143,6 +144,53 @@ Mở file trong `data/`, copy một dòng có sẵn, sửa nội dung. Chú ý g
 > Lưu ý: tiến độ flashcard gắn với chính chữ (`w` / `k`). Đổi chữ của một mục đã học sẽ làm mục đó tính như thẻ mới.
 
 Kiểm tra lỗi cú pháp sau khi sửa: mở web, nhấn `F12` → tab **Console**. Nếu có dòng đỏ báo lỗi ở `data/xxx.js` thì thường là thiếu dấu phẩy hoặc dấu ngoặc kép.
+
+## 5b. Đồng bộ tiến độ lên GitHub
+
+Tiến độ (flashcard, ngữ pháp đã thuộc, lịch sử thi thử, chuỗi ngày học) được lưu thành file `progress.json` trong một **repo private riêng** của bạn. Mở web ở máy nào cũng sẽ kéo dữ liệu mới nhất về.
+
+**Bước 1 — Tạo repo chứa dữ liệu**
+1. https://github.com/new → tên `n1-data` → chọn **Private** → tick **Add a README file** → **Create repository**.
+2. Không dùng chính repo chứa web: repo đó là public (ai cũng xem được tiến độ), và mỗi lần lưu sẽ khiến GitHub Pages deploy lại.
+
+**Bước 2 — Tạo token chỉ có quyền với repo `n1-data`**
+1. GitHub → ảnh đại diện → **Settings** → **Developer settings** → **Personal access tokens** → **Fine-grained tokens** → **Generate new token**.
+2. Điền:
+   - *Token name*: `n1-dojo-sync`
+   - *Expiration*: tuỳ chọn (ví dụ 1 năm; hết hạn thì tạo token mới và dán lại)
+   - *Repository access*: **Only select repositories** → chọn `n1-data`
+   - *Permissions* → *Repository permissions* → **Contents: Read and write** (mục *Metadata: Read-only* sẽ tự bật)
+3. **Generate token** → copy chuỗi `github_pat_…` (chỉ hiện một lần).
+
+**Bước 3 — Kết nối trong web**
+1. Mở web → **Tiến độ** → mục **Đồng bộ lên GitHub**.
+2. Nhập *GitHub username*, *Repo* = `n1-data`, *Đường dẫn file* = `progress.json`, dán token.
+3. Bấm **Lưu & đồng bộ**. Thành công thì repo `n1-data` sẽ có file `progress.json`, và trên thanh menu hiện biểu tượng ☁ với chấm xanh.
+4. Làm lại bước 3 trên từng máy/trình duyệt bạn dùng (dùng chung một token được).
+
+**Cách hoạt động**
+
+| Hành vi | Chi tiết |
+|---|---|
+| Khi mở web | Tự kéo dữ liệu từ repo và gộp với dữ liệu ở máy |
+| Khi học | Gom thay đổi, đẩy lên sau 30 giây không thao tác, hoặc ngay khi rời tab/đóng tab |
+| Gộp dữ liệu | Mỗi thẻ/mẫu ngữ pháp lấy bản được cập nhật **sau cùng**; lịch sử thi thử gộp từ cả hai bên |
+| Trạng thái ☁ | Xanh = đã đồng bộ · Vàng = đang/chờ đồng bộ · Đỏ = lỗi (xem chi tiết ở trang Tiến độ) |
+| Xoá tiến độ | Xoá cả ở máy và trên repo; bản cũ vẫn khôi phục được từ lịch sử commit của `n1-data` |
+
+**Bảo mật**
+- Token chỉ lưu trong `localStorage` của trình duyệt, không nằm trong code, không có trong file xuất JSON và không được đẩy lên repo.
+- Token chỉ có quyền đọc/ghi nội dung **repo `n1-data`**. Nếu lộ, kẻ xấu cũng không động được vào repo khác. Khi nghi ngờ bị lộ, vào trang Fine-grained tokens để **Revoke** rồi tạo token mới.
+- Không nên kết nối trên máy dùng chung. Rời máy thì bấm **Ngắt kết nối** để xoá token.
+
+**Lỗi thường gặp**
+
+| Thông báo | Cách xử lý |
+|---|---|
+| `GitHub 401` | Token sai hoặc đã hết hạn → tạo token mới |
+| `GitHub 403` | Token thiếu quyền **Contents: Read and write** |
+| `GitHub 404` | Sai username/tên repo, hoặc token không được chọn repo `n1-data` |
+| Mỗi lần học tạo rất nhiều commit | Bình thường. Repo `n1-data` chỉ chứa dữ liệu, không ảnh hưởng gì |
 
 ## 6. Tuỳ chọn nâng cao
 
