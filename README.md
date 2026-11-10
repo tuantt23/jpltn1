@@ -32,7 +32,7 @@ Web tĩnh (HTML/CSS/JS thuần, **không cần build, không cần server**) đ�
 
 Tiến độ học lưu bằng `localStorage` trên trình duyệt — mỗi máy/trình duyệt có dữ liệu riêng. Dùng **Tiến độ → Xuất JSON / Nhập JSON** để chuyển máy.
 
-Dữ liệu mẫu: 50 từ vựng, 24 kanji, 30 mẫu ngữ pháp, 2 bài đọc. Bạn tự bổ sung thêm theo [mục 5](#5-thêm-dữ-liệu-học).
+Dữ liệu: 820 từ vựng, 513 kanji, 121 mẫu ngữ pháp, 2 bài đọc và **lộ trình 40 ngày** — nhập từ `N1_On_tap_40_ngay.xlsx` (xem [mục 5](#5-thêm-dữ-liệu-học)). Trang **Lộ trình** cho chọn ngày bắt đầu, mỗi ngày có nút học đúng nhóm từ/kanji/ngữ pháp của ngày đó.
 
 ## 2. Cấu trúc thư mục
 
@@ -47,7 +47,10 @@ jlpt-n1-study/
     ├── vocab.js          # Từ vựng
     ├── kanji.js          # Kanji
     ├── grammar.js        # Ngữ pháp
-    └── reading.js        # Bài đọc hiểu
+    ├── reading.js        # Bài đọc hiểu
+    └── plan.js           # Lộ trình 40 ngày
+tools/
+└── import_xlsx.py        # Sinh data/*.js từ file Excel
 ```
 
 ## 3. Chạy thử trên máy
@@ -117,7 +120,16 @@ GitHub Pages tự deploy lại sau ~1 phút. Nếu chưa thấy thay đổi, nh�
 
 ## 5. Thêm dữ liệu học
 
-Mở file trong `data/`, copy một dòng có sẵn, sửa nội dung. Chú ý giữ dấu phẩy `,` giữa các mục.
+**Cách khuyên dùng — sửa file Excel rồi chạy script** (cần Python + `pip install openpyxl` và Node.js):
+
+```bash
+python tools/import_xlsx.py                 # mặc định đọc N1_On_tap_40_ngay.xlsx ở gốc repo
+python tools/import_xlsx.py duong/dan/khac.xlsx
+```
+
+Script đọc 4 sheet *Lộ trình 40 ngày*, *800 Từ vựng*, *500 Kanji*, *100 Ngữ pháp* và ghi lại `data/vocab.js`, `kanji.js`, `grammar.js`, `plan.js`. Mục đã có trong web mà Excel không có vẫn được giữ; mục trùng thì lấy nội dung Excel nhưng giữ câu ví dụ/cấu trúc cũ nếu Excel bỏ trống. Câu hỏi điền chỗ trống của ngữ pháp được tạo tự động từ câu ví dụ.
+
+**Hoặc sửa tay:** Mở file trong `data/`, copy một dòng có sẵn, sửa nội dung. Chú ý giữ dấu phẩy `,` giữa các mục.
 
 **Từ vựng** (`data/vocab.js`):
 ```js

@@ -88,7 +88,17 @@ input[type=search], select { padding: 10px 12px; border: 1px solid var(--border)
 .face.back { transform: rotateY(180deg); }
 .big-jp { font-family: var(--jp-serif); font-size: clamp(44px, 12vw, 72px); line-height: 1.2; }
 .reading { font-family: var(--jp); color: var(--muted); font-size: 20px; }
-.meaning { font-size: 20px; font-weight: 600; margin: 6px 0 12px; }
+.meaning { font-size: 20px; font-weight: 600; margin: 6px 0 12px; white-space: pre-line; }
+.face.back .meaning { font-size: 17px; }
+.face { overflow-y: auto; }
+.meta { color: var(--muted); font-size: 12px; margin-top: 10px; }
+.gm { white-space: pre-line; }
+.plan-day { scroll-margin-top: 80px; }
+.plan-day.today { outline: 2px solid var(--accent); }
+.plan-day dl { display: grid; grid-template-columns: 110px 1fr; gap: 6px 12px; margin: 10px 0 0; font-size: 14px; }
+.plan-day dt { color: var(--muted); }
+.plan-day dd { margin: 0; }
+@media (max-width: 560px) { .plan-day dl { grid-template-columns: 1fr; } .plan-day dd { margin-bottom: 6px; } }
 .example { font-family: var(--jp); font-size: 16px; }
 .example-vi { color: var(--muted); font-size: 14px; }
 .hint { color: var(--muted); font-size: 13px; text-align: center; }

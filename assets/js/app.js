@@ -3,6 +3,11 @@
   'use strict';
 
   const VOCAB = window.VOCAB || [], KANJI = window.KANJI || [], GRAMMAR = window.GRAMMAR || [], READING = window.READING || [];
+  const PLAN = window.PLAN || [], PLAN_GUIDE = window.PLAN_GUIDE || [];
+  const DAYS = [...new Set([...VOCAB, ...KANJI, ...GRAMMAR].map(x => x.d).filter(Boolean))].sort((a, b) => a - b);
+  // Ngày học lấy từ hash dạng #/vocab?d=3
+  const hashDay = () => { const m = location.hash.match(/[?&]d=(\d+)/); return m ? +m[1] : 0; };
+  const daySelect = (id, cur) => `<select id="${id}" style="width:auto"><option value="0">Mọi ngày học</option>${DAYS.map(d => `<option value="${d}" ${d === cur ? 'selected' : ''}>Ngày ${d}</option>`).join('')}</select>`;
   const STORE = 'n1dojo_v1';
   const DAY = 86400000;
   // Leitner: hộp 0..6 → số ngày tới lần ôn tiếp theo
@@ -73,6 +78,7 @@
     const ls = local.streak || {}, rs = remote.streak || {};
     const ld = ls.last ? Date.parse(ls.last) : 0, rd = rs.last ? Date.parse(rs.last) : 0;
     out.streak = ld > rd ? ls : rd > ld ? rs : ((ls.count || 0) >= (rs.count || 0) ? ls : rs);
+    out.planStart = local.planStart || remote.planStart || null; // ngày bắt đầu lộ trình 40 ngày
     out.theme = local.theme; // giao diện giữ theo từng máy
     return out;
   }
@@ -203,7 +209,7 @@
   }
 
   /* ---------- Router ---------- */
-  const routes = { home, vocab: () => flash('vocab'), kanji: () => flash('kanji'), grammar, reading, quiz, progress };
+  const routes = { home, plan, vocab: () => flash('vocab'), kanji: () => flash('kanji'), grammar, reading, quiz, progress };
   let cleanup = null;
   function render() {
     if (cleanup) { cleanup(); cleanup = null; }
@@ -241,6 +247,7 @@
       </div>
       <h2>Bắt đầu học</h2>
       <div class="grid">
+        <a class="card" href="#/plan"><div class="tile-jp">計画</div><b>Lộ trình 40 ngày</b><div class="sub" style="margin:0">${PLAN.length ? `Đang ở ngày ${planToday()}/${PLAN.length}` : 'Chưa có lộ trình'}</div></a>
         <a class="card" href="#/vocab"><div class="tile-jp">語彙</div><b>Từ vựng</b><div class="sub" style="margin:0">${dueV} thẻ đến hạn · ${VOCAB.length} từ</div></a>
         <a class="card" href="#/kanji"><div class="tile-jp">漢字</div><b>Kanji</b><div class="sub" style="margin:0">${dueK} thẻ đến hạn · ${KANJI.length} chữ</div></a>
         <a class="card" href="#/grammar"><div class="tile-jp">文法</div><b>Ngữ pháp</b><div class="sub" style="margin:0">Đã thuộc ${gLearned}/${GRAMMAR.length} mẫu</div></a>
@@ -252,9 +259,10 @@
   /* ---------- Flashcards ---------- */
   function flash(deck) {
     const isV = deck === 'vocab';
-    const all = isV ? VOCAB : KANJI;
+    const full = isV ? VOCAB : KANJI;
     const idOf = isV ? vocabId : kanjiId;
-    let mode = 'due', queue = [], i = 0, flipped = false, done = 0, okCount = 0;
+    let day = hashDay(), all = day ? full.filter(x => x.d === day) : full;
+    let mode = day ? 'all' : 'due', queue = [], i = 0, flipped = false, done = 0, okCount = 0;
 
     function build() {
       const pool = mode === 'due' ? all.filter(x => isDue(idOf(x))) : all;
@@ -267,18 +275,22 @@
     }
     function back(x) {
       if (isV) return `<div class="reading">${esc(x.r)}</div><div class="big-jp" style="font-size:40px">${esc(x.w)}</div>
-        <div class="meaning">${esc(x.m)}</div><div class="example">${esc(x.e)}</div><div class="example-vi">${esc(x.ev)}</div>`;
+        ${x.hv ? `<div class="tag">${esc(x.hv)}</div>` : ''}
+        <div class="meaning">${esc(x.m)}</div>${x.e ? `<div class="example">${esc(x.e)}</div><div class="example-vi">${esc(x.ev)}</div>` : ''}
+        ${x.t || x.x || x.d ? `<div class="meta">${[x.t, x.d && 'Ngày ' + x.d, x.x && 'Đã ra: ' + x.x].filter(Boolean).map(esc).join(' · ')}</div>` : ''}`;
       return `<div class="big-jp" style="font-size:52px">${esc(x.k)} <span style="font-size:22px;font-family:var(--ui)">${esc(x.hv)}</span></div>
         <div class="meaning">${esc(x.m)}</div>
         <div class="reading">音: ${esc(x.on) || '—'} ・ 訓: ${esc(x.kun) || '—'}</div>
-        <div class="example" style="margin-top:10px">${x.ex.map(e => `${esc(e[0])}（${esc(e[1])}）${esc(e[2])}`).join('<br>')}</div>`;
+        <div class="example" style="margin-top:10px">${x.ex.map(e => `${esc(e[0])}${e[1] ? `（${esc(e[1])}）` : ''}${esc(e[2])}`).join('<br>')}</div>
+        ${x.d ? `<div class="meta">Ngày ${x.d}</div>` : ''}`;
     }
     function draw() {
       const head = `
         <h1>${isV ? 'Từ vựng N1' : 'Kanji N1'}</h1>
         <p class="sub">Lặp lại ngắt quãng (Leitner): nhớ → thẻ lên hộp và giãn lịch ôn; quên → về hộp 0.</p>
         <div class="row" style="justify-content:space-between">
-          <div class="seg"><button data-m="due" class="${mode === 'due' ? 'on' : ''}">Đến hạn (${all.filter(x => isDue(idOf(x))).length})</button><button data-m="all" class="${mode === 'all' ? 'on' : ''}">Tất cả (${all.length})</button></div>
+          <div class="row"><div class="seg"><button data-m="due" class="${mode === 'due' ? 'on' : ''}">Đến hạn (${all.filter(x => isDue(idOf(x))).length})</button><button data-m="all" class="${mode === 'all' ? 'on' : ''}">Tất cả (${all.length})</button></div>
+          ${DAYS.length ? daySelect('fday', day) : ''}</div>
           <span class="hint"><span class="kbd">Space</span> lật · <span class="kbd">1</span> quên · <span class="kbd">2</span> nhớ · <span class="kbd">S</span> phát âm</span>
         </div>`;
       if (i >= queue.length) {
@@ -314,7 +326,11 @@
       if (!ok && mode === 'all') queue.push(queue[i]); // gặp lại cuối lượt
       i++; flipped = false; draw();
     }
-    function bindSeg() { $app.querySelectorAll('.seg button').forEach(b => b.onclick = () => { mode = b.dataset.m; build(); }); }
+    function bindSeg() {
+      $app.querySelectorAll('.seg button').forEach(b => b.onclick = () => { mode = b.dataset.m; build(); });
+      const sel = document.getElementById('fday');
+      if (sel) sel.onchange = () => { day = +sel.value; all = day ? full.filter(x => x.d === day) : full; if (day) mode = 'all'; build(); };
+    }
     function onKey(e) {
       if (e.target.matches('input,textarea,select')) return;
       if (e.code === 'Space') { e.preventDefault(); flip(); }
@@ -327,29 +343,75 @@
     build();
   }
 
+  /* ---------- Lộ trình 40 ngày ---------- */
+  // Ngày bắt đầu lưu trong S.planStart (ms, đầu ngày); hôm nay = số ngày đã trôi qua + 1
+  function planToday() {
+    if (!S.planStart) return 1;
+    return Math.min(Math.max(Math.floor((startOfDay(Date.now()) - S.planStart) / DAY) + 1, 1), PLAN.length || 1);
+  }
+  const isoDate = t => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  function plan() {
+    if (!PLAN.length) { $app.innerHTML = '<h1>Lộ trình 40 ngày</h1><div class="empty">Chưa có dữ liệu (data/plan.js).</div>'; return; }
+    const today = planToday();
+    const count = (arr, d) => arr.filter(x => x.d === d).length;
+    const heading = l => /^[A-ZĐÀ-Ỹ0-9 &()≈,–.′]+$/.test(l.split(':')[0]) && l === l.toUpperCase() || /^NGÀY/.test(l);
+    $app.innerHTML = `
+      <h1>Lộ trình 40 ngày</h1>
+      <p class="sub">${S.planStart ? `Bắt đầu từ ${new Date(S.planStart).toLocaleDateString('vi-VN')} — hôm nay là <b>ngày ${today}</b>.` : 'Chọn ngày bắt đầu để web tự tính hôm nay học ngày mấy.'}</p>
+      <div class="row" style="margin-bottom:14px">
+        <label class="row">Ngày bắt đầu <input type="date" id="pStart" value="${S.planStart ? isoDate(S.planStart) : ''}" style="width:auto"></label>
+        <button class="btn primary" id="pToday">Tới ngày ${today}</button>
+      </div>
+      ${PLAN_GUIDE.length ? `<details class="card" style="margin-bottom:14px"><summary><b>Cách chọn dữ liệu & cách học mỗi ngày</b></summary>
+        <div style="margin-top:10px">${PLAN_GUIDE.filter(Boolean).map(l => heading(l) ? `<p style="margin:14px 0 4px"><b>${esc(l)}</b></p>` : `<p style="margin:4px 0">${esc(l)}</p>`).join('')}</div></details>` : ''}
+      <div class="list">${PLAN.map(p => {
+        const nv = count(VOCAB, p.d), nk = count(KANJI, p.d), ng = count(GRAMMAR, p.d);
+        return `<div class="card plan-day ${p.d === today && S.planStart ? 'today' : ''}" id="day-${p.d}">
+          <div class="row" style="justify-content:space-between"><b>Ngày ${p.d} · Tuần ${p.w}</b><span class="tag ${/Học mới/.test(p.type || '') ? '' : 'ok'}">${esc(p.type)}</span></div>
+          <dl>
+            <dt>Từ vựng</dt><dd>${esc(p.v)}</dd>
+            <dt>Kanji</dt><dd>${esc(p.k)}</dd>
+            <dt>Ngữ pháp</dt><dd class="jp">${esc(p.g)}</dd>
+            <dt>Ôn tập</dt><dd>${esc(p.rev)}</dd>
+            <dt>Luyện đề</dt><dd>${esc(p.prac)}</dd>
+            <dt>Thời lượng</dt><dd>${esc(p.time)}</dd>
+          </dl>
+          ${nv + nk + ng ? `<div class="row" style="margin-top:10px">
+            ${nv ? `<a class="btn small" href="#/vocab?d=${p.d}">Học ${nv} từ</a>` : ''}
+            ${nk ? `<a class="btn small" href="#/kanji?d=${p.d}">Học ${nk} kanji</a>` : ''}
+            ${ng ? `<a class="btn small" href="#/grammar?d=${p.d}">${ng} mẫu ngữ pháp</a>` : ''}</div>` : ''}
+        </div>`;
+      }).join('')}</div>`;
+    document.getElementById('pStart').onchange = e => {
+      const v = e.target.value; S.planStart = v ? startOfDay(new Date(v + 'T00:00:00').getTime()) : null; save(); plan();
+    };
+    document.getElementById('pToday').onclick = () => { const el = document.getElementById('day-' + planToday()); if (el) el.scrollIntoView({ behavior: 'smooth' }); };
+  }
+
   /* ---------- Grammar ---------- */
   function grammar() {
-    let filter = '', only = 'all';
+    let filter = '', only = 'all', day = hashDay();
     $app.innerHTML = `
       <h1>Ngữ pháp N1</h1>
       <p class="sub">Bấm vào từng mẫu để xem cấu trúc và ví dụ. Đánh dấu “Đã thuộc” để theo dõi tiến độ.</p>
       <div class="row" style="margin-bottom:14px">
         <input type="search" id="gq" placeholder="Tìm mẫu ngữ pháp hoặc nghĩa… (vd: をもって, bất chấp)" style="flex:1;min-width:200px">
         <div class="seg"><button data-f="all" class="on">Tất cả</button><button data-f="todo">Chưa thuộc</button><button data-f="done">Đã thuộc</button></div>
+        ${DAYS.length ? daySelect('gday', day) : ''}
       </div>
       <div class="list" id="glist"></div>`;
     const list = document.getElementById('glist');
     function draw() {
       const q = filter.trim().toLowerCase();
-      const items = GRAMMAR.filter(g => (!q || (g.p + g.m + g.e).toLowerCase().includes(q)) &&
-        (only === 'all' || (only === 'done') === !!S.grammar[g.p]));
+      const items = GRAMMAR.filter(g => (!q || (g.p + g.m + (g.e || '')).toLowerCase().includes(q)) &&
+        (!day || g.d === day) && (only === 'all' || (only === 'done') === !!S.grammar[g.p]));
       list.innerHTML = items.length ? items.map(g => `
         <details class="gitem">
-          <summary><span class="pat">${esc(g.p)}</span><span class="gm">${esc(g.m)}</span>${S.grammar[g.p] ? '<span class="tag ok">Đã thuộc</span>' : ''}</summary>
+          <summary><span class="pat">${esc(g.p)}</span><span class="gm">${esc(g.m)}</span>${g.d ? `<span class="tag">Ngày ${g.d}</span>` : ''}${S.grammar[g.p] ? '<span class="tag ok">Đã thuộc</span>' : ''}</summary>
           <div class="body">
-            <div><span class="tag">Cấu trúc</span> <span class="jp">${esc(g.s)}</span></div>
-            <p class="example" style="margin:10px 0 2px">${esc(g.e)} <button class="btn small" data-say="${esc(g.e)}">🔊</button></p>
-            <div class="example-vi">${esc(g.ev)}</div>
+            ${g.s ? `<div><span class="tag">Cấu trúc</span> <span class="jp">${esc(g.s)}</span></div>` : ''}
+            ${g.e ? `<p class="example" style="margin:10px 0 2px">${esc(g.e)} <button class="btn small" data-say="${esc(g.e)}">🔊</button></p>
+            <div class="example-vi">${esc(g.ev)}</div>` : '<p class="example-vi">Chưa có ví dụ.</p>'}
             <div class="row" style="margin-top:12px"><button class="btn small ${S.grammar[g.p] ? '' : 'primary'}" data-learn="${esc(g.p)}">${S.grammar[g.p] ? 'Bỏ đánh dấu' : '✓ Đã thuộc'}</button></div>
           </div>
         </details>`).join('') : '<div class="empty">Không tìm thấy mẫu nào.</div>';
@@ -364,6 +426,7 @@
       }
     });
     document.getElementById('gq').addEventListener('input', e => { filter = e.target.value; draw(); });
+    const gday = document.getElementById('gday'); if (gday) gday.onchange = () => { day = +gday.value; draw(); };
     $app.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
       only = b.dataset.f; $app.querySelectorAll('.seg button').forEach(x => x.classList.toggle('on', x === b)); draw();
     });
@@ -401,7 +464,7 @@
     vmean: { name: 'Từ vựng → Nghĩa', make: () => { const v = pick(VOCAB); return mc(v.w, v.m, unique(sample(VOCAB, 6, v).map(x => x.m)), vocabId(v), `${v.w}（${v.r}）: ${v.m}`); } },
     vread: { name: 'Cách đọc từ (読み方)', make: () => { const v = pick(VOCAB); return mc(v.w, v.r, unique(sample(VOCAB, 6, v).map(x => x.r)), vocabId(v), `${v.w} đọc là ${v.r} — ${v.m}`); } },
     kmean: { name: 'Kanji → Hán Việt', make: () => { const k = pick(KANJI); return mc(k.k, `${k.hv} — ${k.m}`, unique(sample(KANJI, 6, k).map(x => `${x.hv} — ${x.m}`)), kanjiId(k), `${k.k} (${k.hv}): ${k.ex.map(e => e[0] + '・' + e[1]).join(', ')}`); } },
-    gram: { name: 'Ngữ pháp (điền vào chỗ trống)', make: () => { const g = pick(GRAMMAR); return mc(g.q, g.a, unique(sample(GRAMMAR, 6, g).map(x => x.a)), null, `${g.p}: ${g.m} — ${g.e}`); } }
+    gram: { name: 'Ngữ pháp (điền vào chỗ trống)', make: () => { const G = GRAMMAR.filter(x => x.q && x.a), g = pick(G); return mc(g.q, g.a, unique(sample(G, 6, g).map(x => x.a)), null, `${g.p}: ${g.m} — ${g.e}`); } }
   };
   function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
   function mc(q, a, distract, id, explain) {
