@@ -164,6 +164,7 @@
   }
 
   /* ---------- Helpers ---------- */
+  const gex = g => [...(g.e ? [[g.e, g.ev || '']] : []), ...(g.x || [])];
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   const sample = (arr, n, exclude) => shuffle(arr.filter(x => x !== exclude)).slice(0, n);
@@ -273,6 +274,7 @@
       return isV ? `<div class="big-jp">${esc(x.w)}</div><div class="hint">Bấm để lật thẻ</div>`
                  : `<div class="big-jp" style="font-size:96px">${esc(x.k)}</div><div class="hint">Âm Hán Việt? Nghĩa? Bấm để lật</div>`;
     }
+    const kwords = l => (l || []).map(e => `<div class="example">${esc(e[0])}${e[1] ? `（${esc(e[1])}）` : ''} <span class="example-vi">${esc(e[2])}</span></div>`).join('');
     function back(x) {
       if (isV) return `<div class="reading">${esc(x.r)}</div><div class="big-jp" style="font-size:40px">${esc(x.w)}</div>
         ${x.hv ? `<div class="tag">${esc(x.hv)}</div>` : ''}
@@ -281,7 +283,9 @@
       return `<div class="big-jp" style="font-size:52px">${esc(x.k)} <span style="font-size:22px;font-family:var(--ui)">${esc(x.hv)}</span></div>
         <div class="meaning">${esc(x.m)}</div>
         <div class="reading">音: ${esc(x.on) || '—'} ・ 訓: ${esc(x.kun) || '—'}</div>
-        <div class="example" style="margin-top:10px">${x.ex.map(e => `${esc(e[0])}${e[1] ? `（${esc(e[1])}）` : ''}${esc(e[2])}`).join('<br>')}</div>
+        ${x.eo || x.ek ? `<div class="kx"><span class="tag">音読み</span>${x.eo && x.eo.length ? kwords(x.eo) : '<span class="example-vi">Không có từ âm On thông dụng</span>'}</div>
+        <div class="kx"><span class="tag">訓読み</span>${x.ek && x.ek.length ? kwords(x.ek) : '<span class="example-vi">Không có từ âm Kun thông dụng</span>'}</div>`
+        : `<div class="example" style="margin-top:10px">${kwords(x.ex)}</div>`}
         ${x.d ? `<div class="meta">Ngày ${x.d}</div>` : ''}`;
     }
     function draw() {
@@ -403,15 +407,15 @@
     const list = document.getElementById('glist');
     function draw() {
       const q = filter.trim().toLowerCase();
-      const items = GRAMMAR.filter(g => (!q || (g.p + g.m + (g.e || '')).toLowerCase().includes(q)) &&
+      const items = GRAMMAR.filter(g => (!q || (g.p + g.m + gex(g).flat().join(' ')).toLowerCase().includes(q)) &&
         (!day || g.d === day) && (only === 'all' || (only === 'done') === !!S.grammar[g.p]));
       list.innerHTML = items.length ? items.map(g => `
         <details class="gitem">
           <summary><span class="pat">${esc(g.p)}</span><span class="gm">${esc(g.m)}</span>${g.d ? `<span class="tag">Ngày ${g.d}</span>` : ''}${S.grammar[g.p] ? '<span class="tag ok">Đã thuộc</span>' : ''}</summary>
           <div class="body">
             ${g.s ? `<div><span class="tag">Cấu trúc</span> <span class="jp">${esc(g.s)}</span></div>` : ''}
-            ${g.e ? `<p class="example" style="margin:10px 0 2px">${esc(g.e)} <button class="btn small" data-say="${esc(g.e)}">🔊</button></p>
-            <div class="example-vi">${esc(g.ev)}</div>` : '<p class="example-vi">Chưa có ví dụ.</p>'}
+            ${gex(g).length ? gex(g).map(([jp, vi], i) => `<p class="example" style="margin:10px 0 2px"><span class="tag">Ví dụ ${i + 1}</span> ${esc(jp)} <button class="btn small" data-say="${esc(jp)}">🔊</button></p>
+            <div class="example-vi">${esc(vi)}</div>`).join('') : '<p class="example-vi">Chưa có ví dụ.</p>'}
             <div class="row" style="margin-top:12px"><button class="btn small ${S.grammar[g.p] ? '' : 'primary'}" data-learn="${esc(g.p)}">${S.grammar[g.p] ? 'Bỏ đánh dấu' : '✓ Đã thuộc'}</button></div>
           </div>
         </details>`).join('') : '<div class="empty">Không tìm thấy mẫu nào.</div>';

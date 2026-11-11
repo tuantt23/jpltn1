@@ -149,7 +149,7 @@ write_js('vocab.js', '// Từ vựng N1 — w (từ), r (cách đọc), hv (Hán
          '// Sinh tự động từ N1_On_tap_40_ngay.xlsx bằng tools/import_xlsx.py — sửa Excel rồi chạy lại script.', 'VOCAB', vocab)
 write_js('kanji.js', '// Kanji N1 — k (chữ), hv (Hán Việt), on (âm On), kun (âm Kun), m (nghĩa), ex ([từ, cách đọc, nghĩa]), d (ngày học)\n'
          '// Sinh tự động từ N1_On_tap_40_ngay.xlsx bằng tools/import_xlsx.py.', 'KANJI', kanji)
-write_js('grammar.js', '// Ngữ pháp N1 — p (mẫu), m (nghĩa), s (cấu trúc), e (ví dụ), ev (dịch), q (câu có chỗ trống ＿＿), a (đáp án), d (ngày học), src (nguồn)\n'
+write_js('grammar.js', '// Ngữ pháp N1 — p (mẫu), m (nghĩa), s (cấu trúc), e (ví dụ), ev (dịch), x (ví dụ bổ sung [câu, dịch]), q (câu có chỗ trống ＿＿), a (đáp án), d (ngày học), src (nguồn)\n'
          '// Sinh tự động từ N1_On_tap_40_ngay.xlsx bằng tools/import_xlsx.py.', 'GRAMMAR', grammar)
 with open(os.path.join(DATA, 'plan.js'), 'w', encoding='utf-8', newline='\n') as f:
     f.write('// Lộ trình 40 ngày — sinh tự động từ N1_On_tap_40_ngay.xlsx bằng tools/import_xlsx.py\n')

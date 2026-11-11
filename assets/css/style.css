@@ -101,6 +101,8 @@ input[type=search], select { padding: 10px 12px; border: 1px solid var(--border)
 @media (max-width: 560px) { .plan-day dl { grid-template-columns: 1fr; } .plan-day dd { margin-bottom: 6px; } }
 .example { font-family: var(--jp); font-size: 16px; }
 .example-vi { color: var(--muted); font-size: 14px; }
+.kx { margin-top: 10px; text-align: left; }
+.kx .tag { margin-bottom: 4px; }
 .hint { color: var(--muted); font-size: 13px; text-align: center; }
 .progress-bar { height: 6px; background: var(--surface-2); border-radius: 99px; overflow: hidden; }
 .progress-bar > div { height: 100%; background: var(--accent); transition: width .3s; }
